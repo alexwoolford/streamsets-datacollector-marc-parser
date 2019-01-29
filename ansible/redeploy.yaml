@@ -1,0 +1,35 @@
+---
+# redeploy.yml
+
+- hosts: sdc
+  user: root
+  vars:
+    remote_lib_path: /opt/streamsets-datacollector/user-libs/streamsets-datacollector-marc-parser/lib
+
+  tasks:
+    - name: restart sdc
+      service: name=sdc
+               state=stopped
+
+    - name: delete remote lib path
+      file:
+        path: "{{ remote_lib_path }}"
+        state: absent
+
+    - name: create remote lib path exists
+      file:
+        path: "{{ remote_lib_path }}"
+        state: directory
+
+    - name: rebuild jars
+      local_action: shell mvn clean package -DskipTests chdir=/Users/alexwoolford/streamsets-datacollector-marc-parser
+
+    - name: copy jar to streamsets
+      copy:
+        src: /Users/alexwoolford/streamsets-datacollector-marc-parser/target/streamsets-datacollector-marc-parser-1.0-SNAPSHOT.jar
+        dest: "{{ remote_lib_path }}"
+        force: yes
+
+    - name: restart sdc
+      service: name=sdc
+               state=started
