@@ -16,12 +16,14 @@
 package io.woolford.stage.processor.marcparser;
 
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.FileRef;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.SingleLaneRecordProcessor;
 import io.woolford.stage.lib.marcparser.Errors;
 import org.marc4j.MarcReader;
 import org.marc4j.MarcStreamReader;
+import org.marc4j.MarcXmlReader;
 import org.marc4j.marc.ControlField;
 import org.marc4j.marc.DataField;
 import org.marc4j.marc.Subfield;
@@ -39,7 +41,7 @@ public abstract class MarcParserProcessor extends SingleLaneRecordProcessor {
   /**
    * Gives access to the UI configuration of the stage provided by the {@link MarcParserDProcessor} class.
    */
-  public abstract String getConfig();
+  public abstract MarcFormat getMarcFormat();
 
   /**
    * {@inheritDoc}
@@ -49,10 +51,10 @@ public abstract class MarcParserProcessor extends SingleLaneRecordProcessor {
     // Validate configuration values and open any required resources.
     List<ConfigIssue> issues = super.init();
 
-    if (getConfig().equals("invalidValue")) {
+    if (getMarcFormat() == null) {
       issues.add(
           getContext().createConfigIssue(
-              Groups.MARC_PARSER.name(), "config", Errors.MARC_PARSER_00, "Here's what's wrong..."
+              Groups.MARC_PARSER.name(), "marcFormat", Errors.MARC_PARSER_00, "The format of the Marc file is required (ISO 2709 or XML)."
           )
       );
     }
@@ -78,11 +80,25 @@ public abstract class MarcParserProcessor extends SingleLaneRecordProcessor {
    */
   @Override
   protected void process(Record record, SingleLaneBatchMaker batchMaker) throws StageException {
-
-    String mrc =  record.get("/text").getValue().toString();
+    MarcFormat marcFormat = getMarcFormat();
+    if (!record.has("/fileRef")) {
+      throw new StageException(Errors.MARC_PARSER_01, "MarcParserProcessor must be used on whole file records, those with a /fileRef field.");
+    }
+    FileRef mrc = record.get("/fileRef").getValueAsFileRef();
     try (
-        InputStream is = new ByteArrayInputStream(mrc.getBytes(StandardCharsets.UTF_8))) {
-    MarcReader reader = new MarcStreamReader(is);
+        InputStream is = mrc.createInputStream(getContext(), InputStream.class)) {
+      MarcReader reader;
+      switch (marcFormat) {
+        case ISO_2709:
+          reader = new MarcStreamReader(is);
+          break;
+        case XML:
+          reader = new MarcXmlReader(is);
+          break;
+        default:
+          throw new StageException(Errors.MARC_PARSER_01, "MarcParserProcessor must be configured for a known Marc format.");
+      }
+
       int recordNumber = 0;
     while (reader.hasNext()) {
         Record bibRecord = getContext().createRecord(record, "-" + recordNumber++);

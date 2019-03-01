@@ -15,10 +15,7 @@
  */
 package io.woolford.stage.processor.marcparser;
 
-import com.streamsets.pipeline.api.ConfigDef;
-import com.streamsets.pipeline.api.ConfigGroups;
-import com.streamsets.pipeline.api.GenerateResourceBundle;
-import com.streamsets.pipeline.api.StageDef;
+import com.streamsets.pipeline.api.*;
 
 @StageDef(
     version = 1,
@@ -33,18 +30,20 @@ public class MarcParserDProcessor extends MarcParserProcessor {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
-      defaultValue = "default",
-      label = "MARC Parser Config",
-      displayPosition = 10,
+      type = ConfigDef.Type.MODEL,
+      label = "Marc Format",
+      description = "Format of data in the files, either ISO 2709 or XML",
+      displayPosition = 1,
       group = "MARC_PARSER"
   )
-  public String config;
-
-  /** {@inheritDoc} */
+  @ValueChooserModel(MarcFormatChooserValues.class)
+  public MarcFormat marcFormat;
+  /**
+   * {@inheritDoc}
+   */
   @Override
-  public String getConfig() {
-    return config;
+  public MarcFormat getMarcFormat() {
+    return marcFormat;
   }
 
 }
